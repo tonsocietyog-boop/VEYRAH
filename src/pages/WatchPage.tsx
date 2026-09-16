@@ -58,12 +58,14 @@ export const WatchPage: React.FC<WatchPageProps> = ({
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showEpisodesDrawer, setShowEpisodesDrawer] = useState(false);
   const [similarItems, setSimilarItems] = useState<MediaItem[]>([]);
-  const [iframeLoading, setIframeLoading] = useState(true);
+  const [iframeLoading, setIframeLoading] = useState(false);
   const [iframeError, setIframeError] = useState<string | null>(null);
   const [connectionStalled, setConnectionStalled] = useState(false);
+  const [userConfirmedPlayback, setUserConfirmedPlayback] = useState(false);
 
   const title = media.title || media.name || 'Untitled';
   const isTV = media.media_type === 'tv';
+  const SAFE_FALLBACK_IDS = ['vidcore', 'official-trailer-feed'];
 
   // Compute actual embed URL from provider
   const playbackUrl = selectedProvider.generateUrl ? selectedProvider.generateUrl({
@@ -75,18 +77,18 @@ export const WatchPage: React.FC<WatchPageProps> = ({
 
   // Reset loading state and start timeout when provider or episode changes
   useEffect(() => {
+    if (!userConfirmedPlayback) return;
+
     setIframeLoading(true);
     setIframeError(null);
     setConnectionStalled(false);
 
-    // If an embed is refused (e.g. X-Frame-Options or network block), browsers often won't fire onError.
-    // Display a clean fallback prompt after 5 seconds if still loading.
     const timer = setTimeout(() => {
       setConnectionStalled(true);
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, [selectedProvider.id, media.id, currentSeason, currentEpisode]);
+  }, [selectedProvider.id, media.id, currentSeason, currentEpisode, userConfirmedPlayback]);
 
   // Safe window postMessage listener for VidCore events
   useEffect(() => {
@@ -162,8 +164,11 @@ export const WatchPage: React.FC<WatchPageProps> = ({
   };
 
   const toggleFullscreen = () => {
+    const playerFrame = document.getElementById('watch-stream-frame') as HTMLElement | null;
+    const target = playerFrame || document.documentElement;
+
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
+      target.requestFullscreen?.().catch(() => {});
       setIsFullscreen(true);
     } else {
       document.exitFullscreen?.().catch(() => {});
@@ -171,29 +176,49 @@ export const WatchPage: React.FC<WatchPageProps> = ({
     }
   };
 
+  const switchToSafeFallback = () => {
+    const fallback = PLAYBACK_PROVIDERS.find(
+      (provider) => provider.id !== selectedProvider.id && SAFE_FALLBACK_IDS.includes(provider.id)
+    );
+
+    if (fallback) {
+      setSelectedProvider(fallback);
+      setUserConfirmedPlayback(true);
+      setIframeLoading(true);
+      setIframeError(null);
+      setConnectionStalled(false);
+    }
+  };
+
+  const handleStartPlayback = () => {
+    setUserConfirmedPlayback(true);
+    setIframeError(null);
+    setConnectionStalled(false);
+    setIframeLoading(true);
+  };
+
   return (
     <div id="veyra-watch-page" className="min-h-screen bg-[#07080c] text-white pb-20 pt-16">
-      {/* Top Bar Navigation */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between border-b border-white/5">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-zinc-400 hover:text-white transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-amber-400/40 hover:text-white"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Details</span>
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back</span>
         </button>
 
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-zinc-400 hidden sm:inline">Now Playing:</span>
-          <span className="font-bold text-amber-300 truncate max-w-xs sm:max-w-md">
-            {title} {isTV && `(S${currentSeason} : E${currentEpisode})`}
+        <div className="flex min-w-0 items-center gap-2 px-3 py-1.5 text-center">
+          <span className="hidden text-[10px] uppercase tracking-[0.2em] text-zinc-500 sm:inline">Now Playing</span>
+          <span className="truncate text-sm font-semibold text-amber-300 sm:text-base">
+            {title} {isTV && `(S${currentSeason}:E${currentEpisode})`}
           </span>
         </div>
 
         {isTV && (
           <button
             onClick={() => setShowEpisodesDrawer(!showEpisodesDrawer)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-xs font-semibold text-zinc-300 border border-white/10"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-amber-400/40 hover:text-white"
           >
             <Tv className="w-3.5 h-3.5" />
             <span>Episodes</span>
@@ -201,76 +226,82 @@ export const WatchPage: React.FC<WatchPageProps> = ({
         )}
       </div>
 
-      {/* Quick Server Switcher Tabs Strip */}
-      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 mt-3">
-        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2 scrollbar-none">
-          <div className="flex items-center gap-2 flex-nowrap">
-            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 mr-1 flex-none">
+      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 mt-4">
+        <div className="flex items-center justify-between gap-2 rounded-2xl border border-white/8 bg-[#10141c]/80 px-3 py-2 backdrop-blur-sm">
+          <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-none">
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">
               <Server className="w-3.5 h-3.5 text-amber-400" />
-              Servers:
+              Trusted stream
             </span>
-            {PLAYBACK_PROVIDERS.filter((p) => p.metadata.availability === 'available').map((prov, index) => {
+            {PLAYBACK_PROVIDERS.filter((p) => p.metadata.availability === 'available').map((prov) => {
               const isSelected = selectedProvider.id === prov.id;
               return (
                 <button
                   key={prov.id}
                   onClick={() => setSelectedProvider(prov)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer border ${
+                  className={`rounded-full border px-2.5 py-1.5 text-[11px] font-medium transition ${
                     isSelected
-                      ? 'bg-amber-400 text-black border-amber-300 shadow-md shadow-amber-400/20'
-                      : 'bg-[#11131c] hover:bg-[#191c28] text-zinc-300 border-white/5 hover:border-white/10'
+                      ? 'border-amber-400/60 bg-amber-400 text-black shadow-sm shadow-amber-400/20'
+                      : 'border-white/10 bg-white/3 text-zinc-300 hover:border-white/20 hover:bg-white/8'
                   }`}
                 >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      isSelected ? 'bg-black animate-pulse' : 'bg-emerald-400'
-                    }`}
-                  />
-                  <span>
-                    {prov.id === 'vidcore'
-                      ? 'VidCore'
-                      : prov.id === 'official-trailer-feed'
-                      ? 'Trailer Feed'
-                      : `Server ${index}`}
-                  </span>
-                  {prov.metadata.pingMs && (
-                    <span
-                      className={`text-[10px] font-mono ${
-                        isSelected ? 'text-black/70' : 'text-zinc-500'
-                      }`}
-                    >
-                      {prov.metadata.pingMs}ms
-                    </span>
-                  )}
+                  {prov.id === 'vidcore' ? 'VidCore' : prov.id === 'official-trailer-feed' ? 'Trailer' : 'Safe Mirror'}
                 </button>
               );
             })}
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] text-zinc-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="hidden sm:inline">Active Mirror: {selectedProvider.name}</span>
-            {playbackUrl && (
-              <a
-                href={playbackUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-amber-400 hover:text-amber-300 border border-white/10 text-xs font-semibold transition-colors"
-                title="Open stream in a dedicated tab if your browser blocks or displays 'refused to connect'"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Open in Tab</span>
-              </a>
-            )}
-          </div>
+          {playbackUrl && (
+            <a
+              href={playbackUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-[10px] font-semibold text-amber-300 transition hover:bg-amber-400/15"
+              title="Open stream in a dedicated tab"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Open in tab</span>
+            </a>
+          )}
         </div>
       </div>
 
       {/* Main Video Cinema Theater Container */}
       <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 mt-1">
         <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/10 flex items-center justify-center group">
-          {/* Loading Indicator Overlay */}
-          {iframeLoading && playbackUrl && (
+          {!userConfirmedPlayback && playbackUrl && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
+              <div className="max-w-md rounded-3xl border border-white/10 bg-[#11161d]/90 p-7 text-center shadow-2xl shadow-black/50">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/30">
+                  <Play className="ml-1 h-6 w-6 fill-current" />
+                </div>
+                <h3 className="text-xl font-semibold text-white">Play this title safely</h3>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-300">
+                  We avoid public mirror embeds because they commonly trigger ad redirects and robot-check pages. Confirm once, then open the clean stream route.
+                </p>
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                  <button
+                    onClick={handleStartPlayback}
+                    className="rounded-full bg-amber-400 px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-amber-300"
+                  >
+                    Play stream
+                  </button>
+                  {playbackUrl && (
+                    <a
+                      href={playbackUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-white/20 hover:bg-white/10"
+                    >
+                      Open direct tab
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {iframeLoading && playbackUrl && userConfirmedPlayback && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-xs pointer-events-none transition-opacity duration-300">
               <div className="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
               <p className="mt-3 text-xs font-mono text-zinc-400 tracking-wider">
@@ -281,74 +312,52 @@ export const WatchPage: React.FC<WatchPageProps> = ({
 
           {/* Connection stalled or blocked notification */}
           {connectionStalled && iframeLoading && playbackUrl && (
-            <div className="absolute bottom-4 left-4 right-4 z-30 flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-xl bg-[#0f1118]/95 border border-amber-500/30 text-amber-200 text-xs backdrop-blur-md shadow-xl">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-400 flex-none" />
-                <span>Seeing a blank screen or 'refused to connect'? Some browser privacy rules block embedded players.</span>
-              </div>
-              <div className="flex items-center gap-2 flex-none">
-                <a
-                  href={playbackUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-lg bg-amber-400 text-black font-bold text-xs hover:bg-amber-300 transition-colors flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Open in Direct Tab</span>
-                </a>
-                <button
-                  onClick={() => {
-                    const fallback = PLAYBACK_PROVIDERS.find(
-                      (p) => p.id !== selectedProvider.id && p.metadata.availability === 'available'
-                    );
-                    if (fallback) setSelectedProvider(fallback);
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors"
-                >
-                  Switch Server
-                </button>
+            <div className="absolute bottom-4 left-4 right-4 z-30 rounded-2xl border border-amber-500/30 bg-[#10141d]/95 p-3 text-xs text-amber-100 backdrop-blur-md shadow-xl">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 w-4 h-4 text-amber-400" />
+                <div className="flex-1">
+                  <p className="font-medium text-amber-200">This stream is taking too long to connect.</p>
+                  <p className="mt-1 text-zinc-300">Open it in a tab or switch to a safer route.</p>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Error Message Overlay if playback failed */}
           {iframeError && (
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center bg-[#0d0f17]">
-              <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center mb-3">
-                <AlertCircle className="w-6 h-6" />
-              </div>
-              <h4 className="text-base font-bold text-white mb-1">Playback / Connection Issue</h4>
-              <p className="text-xs text-zinc-300 max-w-sm mb-4 leading-relaxed">{iframeError}</p>
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                {playbackUrl && (
-                  <a
-                    href={playbackUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 border border-white/10"
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#0b0d12]/90 p-6">
+              <div className="max-w-md rounded-2xl border border-white/10 bg-[#11161d]/90 p-6 text-center shadow-xl">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 text-red-300">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <h4 className="text-base font-semibold text-white">Stream blocked</h4>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-300">{iframeError}</p>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                  {playbackUrl && (
+                    <a
+                      href={playbackUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-white/20 hover:bg-white/10"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Open direct tab
+                    </a>
+                  )}
+                  <button
+                    onClick={switchToSafeFallback}
+                    className="rounded-full bg-amber-400 px-3 py-2 text-xs font-semibold text-black transition hover:bg-amber-300"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Open in Direct Tab</span>
-                  </a>
-                )}
-                <button
-                  onClick={() => {
-                    const fallback = PLAYBACK_PROVIDERS.find(
-                      (p) => p.id !== selectedProvider.id && p.metadata.availability === 'available'
-                    );
-                    if (fallback) setSelectedProvider(fallback);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-amber-400 text-black font-bold text-xs hover:bg-amber-300 transition-colors"
-                >
-                  Switch to Alternative Mirror
-                </button>
+                    Try cleaner route
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {/* 1. Direct Embed Streaming Server (VidCore, Multi-CDN, and Mirrors) */}
-          {playbackUrl ? (
+          {playbackUrl && userConfirmedPlayback ? (
             <iframe
+              id="watch-stream-frame"
               key={`${selectedProvider.id}-${media.id}-${currentSeason}-${currentEpisode}`}
               src={playbackUrl}
               title={`${title} Playback Stream`}
@@ -356,7 +365,7 @@ export const WatchPage: React.FC<WatchPageProps> = ({
               height="100%"
               frameBorder="0"
               allowFullScreen
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share"
               referrerPolicy="no-referrer"
               onLoad={() => {
                 setIframeLoading(false);
@@ -364,9 +373,11 @@ export const WatchPage: React.FC<WatchPageProps> = ({
               }}
               onError={() => {
                 setIframeLoading(false);
+                setConnectionStalled(false);
                 setIframeError(
-                  `Playback was refused or blocked by security settings for ${selectedProvider.name}. You can open this stream directly in a new tab or switch mirrors.`
+                  `Playback was refused or blocked by security settings for ${selectedProvider.name}. Trying the next safe route.`
                 );
+                switchToSafeFallback();
               }}
               className="w-full h-full border-0 bg-black"
             />
@@ -384,51 +395,42 @@ export const WatchPage: React.FC<WatchPageProps> = ({
               className="w-full h-full border-0"
             />
           ) : (
-            /* 3. Provider is offline or VIP DRM is required */
-            <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#10121a] to-[#08090e]">
-              {/* Subtle background art */}
+            <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#121720] via-[#0a0d12] to-[#05070a]">
               {media.backdrop_path && (
                 <img
                   src={tmdbImages.backdrop(media.backdrop_path, 'original') || ''}
                   alt={title}
-                  className="absolute inset-0 w-full h-full object-cover opacity-20 filter blur-sm pointer-events-none"
+                  className="absolute inset-0 w-full h-full object-cover opacity-20 blur-sm pointer-events-none"
                 />
               )}
 
               <div className="relative z-10 max-w-md space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto shadow-xl">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-300 shadow-lg shadow-amber-500/10">
                   <Server className="w-7 h-7" />
                 </div>
 
                 <div>
-                  <h3 className="text-xl font-bold text-white font-serif">
-                    Select an Active Stream Server
-                  </h3>
-                  <p className="text-xs sm:text-sm text-zinc-300 mt-2 leading-relaxed">
-                    Selected provider "{selectedProvider.name}" is currently reserved. Switch to one of the 4 live streaming servers above for instant playback.
+                  <h3 className="text-xl font-semibold text-white">No safe stream available</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-zinc-300">
+                    The active provider is not accepting this stream. Switch to a cleaner route or open it in a separate tab.
                   </p>
                 </div>
 
-                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <div className="flex flex-col items-center justify-center gap-3 pt-2 sm:flex-row">
                   <button
                     onClick={() => setSelectedProvider(PLAYBACK_PROVIDERS[0])}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-400/20"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-amber-400 px-5 py-2.5 text-xs font-semibold text-black transition hover:bg-amber-300 sm:w-auto"
                   >
                     <Play className="w-4 h-4 fill-current" />
-                    <span>Switch to Server Alpha (Fast HD)</span>
+                    Open trusted route
                   </button>
                   {media.trailer_key && (
                     <button
-                      onClick={() =>
-                        setSelectedProvider(
-                          PLAYBACK_PROVIDERS.find((p) => p.id === 'official-trailer-feed') ||
-                            PLAYBACK_PROVIDERS[0]
-                        )
-                      }
-                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold border border-white/10 flex items-center justify-center gap-2"
+                      onClick={() => setSelectedProvider(PLAYBACK_PROVIDERS.find((p) => p.id === 'official-trailer-feed') || PLAYBACK_PROVIDERS[0])}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-medium text-zinc-200 transition hover:border-white/20 hover:bg-white/10 sm:w-auto"
                     >
                       <Clapperboard className="w-3.5 h-3.5" />
-                      <span>Watch Studio Trailer</span>
+                      Watch trailer
                     </button>
                   )}
                 </div>
@@ -437,40 +439,33 @@ export const WatchPage: React.FC<WatchPageProps> = ({
           )}
         </div>
 
-        {/* Video Controls Bar Under Theater */}
-        <div className="mt-3 p-3 rounded-xl bg-[#0f1118] border border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/8 bg-[#0d1118]/90 p-3 text-xs">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-semibold text-zinc-200">
-              Provider: {selectedProvider.name}
-            </span>
-            <span className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] font-mono font-bold text-amber-400 border border-white/5">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-medium text-zinc-200">{selectedProvider.name}</span>
+            <span className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-300">
               {quality}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* TV Show Next Episode */}
             {isTV && (
               <button
                 onClick={handleNextEpisode}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-zinc-900 px-3 py-1.5 text-[11px] font-medium text-zinc-200 transition hover:border-white/20 hover:text-white"
               >
-                <span>Next Episode</span>
+                <span>Next Ep</span>
                 <SkipForward className="w-3.5 h-3.5" />
               </button>
             )}
 
-            {/* Quality Selector */}
-            <div className="flex items-center bg-zinc-900 rounded-lg p-0.5 border border-white/10">
+            <div className="flex items-center rounded-full border border-white/10 bg-zinc-900 p-0.5">
               {(['720p', '1080p', '4K'] as const).map((q) => (
                 <button
                   key={q}
                   onClick={() => setQuality(q)}
-                  className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
-                    quality === q
-                      ? 'bg-amber-400 text-black'
-                      : 'text-zinc-400 hover:text-white'
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${
+                    quality === q ? 'bg-amber-400 text-black' : 'text-zinc-400 hover:text-white'
                   }`}
                 >
                   {q}
@@ -478,23 +473,19 @@ export const WatchPage: React.FC<WatchPageProps> = ({
               ))}
             </div>
 
-            {/* Subtitles toggle */}
             <button
               onClick={() => setSubtitlesEnabled(!subtitlesEnabled)}
-              className={`p-1.5 rounded-lg border transition-colors ${
-                subtitlesEnabled
-                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/30'
-                  : 'bg-zinc-900 text-zinc-500 border-white/5'
+              className={`rounded-full border p-1.5 transition ${
+                subtitlesEnabled ? 'border-amber-400/30 bg-amber-400/10 text-amber-300' : 'border-white/10 bg-zinc-900 text-zinc-500'
               }`}
               title="Toggle Subtitles"
             >
               <Subtitles className="w-4 h-4" />
             </button>
 
-            {/* Fullscreen */}
             <button
               onClick={toggleFullscreen}
-              className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/10"
+              className="rounded-full border border-white/10 bg-zinc-900 p-1.5 text-zinc-300 transition hover:border-white/20 hover:text-white"
               title="Toggle Fullscreen"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}

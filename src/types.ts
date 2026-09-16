@@ -88,6 +88,7 @@ export interface MediaItem {
   revenue?: number;
   production_companies?: ProductionCompany[];
   seasons?: Season[];
+  number_of_seasons?: number;
   videos?: VideoItem[];
   trailer_key?: string; // Primary YouTube trailer ID
   mood_tags?: Mood[];

@@ -1,20 +1,15 @@
 import { MediaRequest, PlaybackSource, VideoProvider } from './types';
 import { vidcoreAdapter } from './adapters/vidcore';
-import { vidsrcAdapter } from './adapters/vidsrc';
-import { embedsuAdapter } from './adapters/embedsu';
-import { autoembedAdapter } from './adapters/autoembed';
-import { multiembedAdapter } from './adapters/multiembed';
 import { trailerAdapter, vipVaultAdapter } from './adapters/special';
+
+const TRUSTED_PROVIDER_IDS = new Set(['vidcore']);
+const SAFE_FALLBACK_IDS = ['vidcore', 'official-trailer-feed'];
 
 class ProviderRegistry {
   private providers: Map<string, VideoProvider> = new Map();
 
   constructor() {
     this.register(vidcoreAdapter);
-    this.register(vidsrcAdapter);
-    this.register(embedsuAdapter);
-    this.register(autoembedAdapter);
-    this.register(multiembedAdapter);
     this.register(trailerAdapter);
     this.register(vipVaultAdapter);
   }
@@ -28,7 +23,17 @@ class ProviderRegistry {
   }
 
   public getAllProviders(): VideoProvider[] {
-    return Array.from(this.providers.values());
+    return Array.from(this.providers.values()).filter((provider) => {
+      if (provider.id === 'official-trailer-feed') return true;
+      return TRUSTED_PROVIDER_IDS.has(provider.id);
+    });
+  }
+
+  public getSafeFallbackProviders(currentProviderId?: string): VideoProvider[] {
+    const safeProviders = this.getAllProviders();
+    if (!currentProviderId) return safeProviders;
+
+    return safeProviders.filter((provider) => provider.id !== currentProviderId);
   }
 
   /**

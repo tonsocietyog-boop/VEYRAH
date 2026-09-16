@@ -70,6 +70,12 @@ export const DetailPage: React.FC<DetailPageProps> = ({
     ? `~${detailedItem.episode_run_time[0]}m / ep`
     : null;
 
+  const totalEpisodes =
+    detailedItem.media_type === 'tv'
+      ? (detailedItem.seasons || []).reduce((sum, season) => sum + (season.episodes?.length || 0), 0)
+      : 0;
+  const seasonCount = detailedItem.number_of_seasons ?? detailedItem.seasons?.length ?? 0;
+
   const backdropUrl = tmdbImages.backdrop(detailedItem.backdrop_path, 'original');
   const posterUrl = tmdbImages.poster(detailedItem.poster_path, 'w500');
 
@@ -200,6 +206,23 @@ export const DetailPage: React.FC<DetailPageProps> = ({
                 </span>
               ))}
             </div>
+
+            {detailedItem.media_type === 'tv' && seasonCount > 0 && (
+              <div className="grid max-w-xl grid-cols-3 gap-3 pt-1">
+                <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 backdrop-blur-sm">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Seasons</p>
+                  <p className="mt-1 text-lg font-bold text-white">{seasonCount}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 backdrop-blur-sm">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Episodes</p>
+                  <p className="mt-1 text-lg font-bold text-white">{totalEpisodes}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 backdrop-blur-sm">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Status</p>
+                  <p className="mt-1 text-sm font-bold text-amber-300">{detailedItem.status || 'Live'}</p>
+                </div>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-3 pt-3">

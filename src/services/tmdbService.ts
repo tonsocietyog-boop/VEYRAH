@@ -109,11 +109,41 @@ class TMDBService {
   async getTVDetails(id: number): Promise<MediaItem | null> {
     const live = await this.fetchApi<MediaItem>(`/tv/${id}`, { append_to_response: 'credits,videos,similar' });
     if (live && live.id) {
-      return { ...live, media_type: 'tv' };
+      const hydrated = await this.hydrateTVSeasons(live, id);
+      return { ...hydrated, media_type: 'tv' };
     }
     const found = CATALOG_ITEMS.find((i) => i.id === id && i.media_type === 'tv');
     if (found) return found;
     return CATALOG_ITEMS.find((i) => i.id === id) || null;
+  }
+
+  private async hydrateTVSeasons(show: MediaItem, tvId: number): Promise<MediaItem> {
+    if (!show.seasons || show.seasons.length === 0) return show;
+
+    const hydratedSeasons = await Promise.all(
+      show.seasons.map(async (season) => {
+        if (season.episodes && season.episodes.length > 0) return season;
+
+        const seasonDetails = await this.fetchApi<Season>(`/tv/${tvId}/season/${season.season_number}`);
+        if (!seasonDetails) return season;
+
+        return {
+          ...season,
+          name: seasonDetails.name || season.name,
+          overview: seasonDetails.overview || season.overview,
+          poster_path: seasonDetails.poster_path || season.poster_path,
+          episode_count: seasonDetails.episode_count || season.episode_count,
+          air_date: seasonDetails.air_date || season.air_date,
+          episodes: seasonDetails.episodes || season.episodes,
+        };
+      })
+    );
+
+    return {
+      ...show,
+      seasons: hydratedSeasons,
+      number_of_seasons: hydratedSeasons.length,
+    } as MediaItem;
   }
 
   async getSeasonDetails(tvId: number, seasonNumber: number): Promise<Season | null> {

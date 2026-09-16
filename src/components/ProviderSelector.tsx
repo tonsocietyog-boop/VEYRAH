@@ -29,22 +29,26 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
   return (
     <div className="rounded-2xl bg-[#0f1118] border border-white/10 p-4 sm:p-5 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Server className="w-4 h-4 text-amber-400" />
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-            Streaming Servers & Mirrors
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/20">
+            <Server className="w-4 h-4" />
+          </div>
+          <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-zinc-200">
+            Playback route
           </h3>
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-950/60 text-emerald-400 border border-emerald-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            {PLAYBACK_PROVIDERS.filter((p) => p.metadata.availability === 'available').length} Active Nodes
-          </span>
-          <span className="text-[11px] font-mono text-zinc-500 hidden sm:inline">
-            Multi-Source v2.6
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/50 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+            {PLAYBACK_PROVIDERS.filter((p) => p.metadata.availability === 'available').length} safe routes
           </span>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-emerald-300">
+        <CheckCircle2 className="w-3.5 h-3.5" />
+        <span>No ad redirects • no captcha prompts</span>
       </div>
 
       {/* Featured Vidcore Provider Card */}
@@ -60,8 +64,8 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
 
       {/* Other Provider Selector Buttons */}
       <div className="space-y-2">
-        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-          Alternative Mirrors & Trailers
+        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+          Trusted options
         </span>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {otherProviders.map((prov) => {
