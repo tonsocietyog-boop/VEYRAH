@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-cinematic: 'Cinzel', Georgia, serif;
+  --color-veyra-dark: #08090d;
+  --color-veyra-card: #111319;
+  --color-veyra-elevated: #181b24;
+  --color-veyra-border: #222634;
+  --color-veyra-amber: #e5a93c;
+  --color-veyra-gold: #f5c518;
+}
+
+body {
+  background-color: #08090d;
+  color: #f3f4f6;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbars for carousels */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Elegant custom scrollbar for modal and page */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0f14;
+}
+::-webkit-scrollbar-thumb {
+  background: #252a38;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #373f54;
+}
